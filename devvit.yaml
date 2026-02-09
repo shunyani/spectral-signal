@@ -1,0 +1,6 @@
+name: spectral-signal
+version: 0.0.1
+features:
+  redis: true
+  permissions:
+  - flair
