@@ -1,4 +1,4 @@
-import { Devvit, useState, useAsync, useInterval, useForm } from '@devvit/public-api';
+import { Devvit, useState, useAsync, useInterval } from '@devvit/public-api';
 
 Devvit.configure({ redditAPI: true, redis: true, userActions: true });
 
@@ -176,9 +176,12 @@ const GameController = ({ mode, context, onBack }: any) => {
   const [shared, setShared] = useState(false); 
   const [shake, setShake] = useState(0); 
   const [streak, setStreak] = useState({ current: 0, lastWin: '' });
-  const [isCreating, setIsCreating] = useState(false); 
-  const [totalContracts, setTotalContracts] = useState(0); 
+  const [isCreating, setIsCreating] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+  const [challengeCreated, setChallengeCreated] = useState(false); 
 
+  const [totalContracts, setTotalContracts] = useState(0); 
+  const [currentRank, setCurrentRank] = useState<number | null>(null);
   const [creatorGhostIndex, setCreatorGhostIndex] = useState(-1);
   const [customMoves, setCustomMoves] = useState(7); 
   const [customMines, setCustomMines] = useState(11); 
@@ -193,8 +196,14 @@ const GameController = ({ mode, context, onBack }: any) => {
     let isCustom = false;
     let customTitle = "";
     let moveLimit = 7;
-
-    const customDataString = await context.redis.get(`puzzle:${context.postId}`);
+    let customDataString = await context.redis.get(`puzzle:${context.postId}`);
+    if (!customDataString) {
+        const cleanId = context.postId.replace('t3_', '');
+        customDataString = await context.redis.get(`puzzle:${cleanId}`);
+        if (!customDataString) {
+             customDataString = await context.redis.get(`puzzle:t3_${cleanId}`);
+        }
+    }
     
     if (customDataString) {
         isCustom = true;
@@ -239,7 +248,7 @@ const GameController = ({ mode, context, onBack }: any) => {
 
     const progressKey = isCustom 
         ? `progress_custom_${context.postId}_${context.userId}`
-        : `progress_${mode}_${today}_${context.userId}_v13`;
+        : `progress_${mode}_${today}_${context.userId}_v16`;
 
     const savedProgress = await context.redis.get(progressKey).then((res: string | undefined) => res ? JSON.parse(res) : null);
     
@@ -259,10 +268,10 @@ const GameController = ({ mode, context, onBack }: any) => {
     }
     
     const alreadyUploaded = savedProgress?.submitted || false;
-    if (alreadyUploaded) setSubmitted(true);
+    const savedChallengeCreated = savedProgress?.challengeCreated || false;
 
     return { 
-      gameData, username, alreadyUploaded, 
+      gameData, username, alreadyUploaded, savedChallengeCreated,
       alreadyShared: alreadyShared === 'true', 
       savedAttempts: savedProgress?.attempts ?? 0,
       savedTiles: savedProgress?.scannedTiles ?? {},
@@ -272,7 +281,7 @@ const GameController = ({ mode, context, onBack }: any) => {
       isCustom, customTitle, moveLimit,
       progressKey, lockKey
     };
-  });
+  }, [resetKey]); 
 
   const [loaded, setLoaded] = useState(false);
   if (data && !loaded) {
@@ -283,6 +292,8 @@ const GameController = ({ mode, context, onBack }: any) => {
       setStreak(data.savedStreak);
       setTotalContracts(data.contracts || 0);
       setShared(data.alreadyShared); 
+      setSubmitted(data.alreadyUploaded);
+      setChallengeCreated(data.savedChallengeCreated);
       setLoaded(true);
   }
 
@@ -292,88 +303,133 @@ const GameController = ({ mode, context, onBack }: any) => {
     setCreatorGhostIndex(index);
   };
 
+  const saveProgress = async (updates: any) => {
+     if (!data?.progressKey) return;
+     const current = await context.redis.get(data.progressKey);
+     const parsed = current ? JSON.parse(current) : {};
+     const newParams = { ...parsed, ...updates };
+     await context.redis.set(data.progressKey, JSON.stringify(newParams));
+  };
+
   const postChallenge = async () => {
     if (creatorGhostIndex === -1) { context.ui.showToast("Select a ghost location first!"); return; }
     context.ui.showToast("Creating Challenge...");
     
+    const currentUser = await context.reddit.getCurrentUser();
+    const username = currentUser?.username ?? (data?.username || 'Unknown Agent');
+
     const modeName = mode === 'easy' ? 'SCOUT' : mode === 'medium' ? 'RANGER' : 'ELITE';
-    let title = `Can you find u/${data?.username}'s Ghost? [${modeName}]`;
-    if(mode === 'medium') title = `Can you find u/${data?.username}'s Ghost in ${customMoves} moves?`;
-    if(mode === 'hard') title = `Can you survive u/${data?.username}'s ${customMines}-Mine Trap?`;
+    let title = `Can you find u/${username}'s Ghost? [${modeName}]`;
+    if(mode === 'medium') title = `u/${username} challenges you: Find the Ghost in ${customMoves} moves! [RANGER]`;
+    if(mode === 'hard') title = `⚠️ TRAP DETECTED: u/${username} set ${customMines} Mines! [ELITE]`;
 
-    const newPost = await context.reddit.submitPost({
-        title: title,
-        subredditName: (await context.reddit.getCurrentSubreddit()).name,
-        preview: (<vstack height="100%" width="100%" alignment="middle center" backgroundColor="#000510"><text size="large" color="#00ffcc">LOADING USER PUZZLE...</text></vstack>),
-    });
+    try {
+        const newPost = await context.reddit.submitPost({
+            title: title,
+            subredditName: (await context.reddit.getCurrentSubreddit()).name,
+            preview: (<vstack height="100%" width="100%" alignment="middle center" backgroundColor="#000510"><text size="large" color="#00ffcc">LOADING USER PUZZLE...</text></vstack>),
+            userGeneratedContent: true 
+        }, { runAs: 'USER' });
 
-    await context.redis.set(`puzzle:${newPost.id}`, JSON.stringify({
-        ghostIndex: creatorGhostIndex,
-        mode: mode,
-        author: data?.username,
-        moves: customMoves,
-        mineCount: customMines,
-        createdAt: Date.now()
-    }));
+        await context.redis.set(`puzzle:${newPost.id}`, JSON.stringify({
+            ghostIndex: creatorGhostIndex,
+            mode: mode,
+            author: username,
+            moves: customMoves,
+            mineCount: customMines,
+            createdAt: Date.now()
+        }));
+        
+        const cleanId = newPost.id.replace('t3_', '');
+        if (cleanId !== newPost.id) {
+            await context.redis.set(`puzzle:${cleanId}`, JSON.stringify({
+                ghostIndex: creatorGhostIndex,
+                mode: mode,
+                author: username,
+                moves: customMoves,
+                mineCount: customMines,
+                createdAt: Date.now()
+            }));
+        }
 
-    context.ui.showToast("Challenge Posted! Check New.");
-    setIsCreating(false);
+        context.ui.showToast("Challenge Posted!");
+        await saveProgress({ challengeCreated: true });
+        setChallengeCreated(true); 
+        setIsCreating(false);
+    } catch (e) {
+        console.error("Post Error:", e);
+        context.ui.showToast("Error creating post. Try again.");
+    }
   };
 
   const rechargeSystem = async () => {
       setAttempts(0); setScannedTiles({}); setIsDead(false); setGameOver(false);
       setSubmitted(false); setShake(0);
       setShared(false); 
+      setChallengeCreated(false); 
       
       if (data?.progressKey) {
           await context.redis.del(data.progressKey);
           await context.redis.del(data.lockKey);
       }
+      setResetKey(prev => prev + 1);
       context.ui.showToast("SYSTEM RECHARGED");
   };
 
   const shareResult = async () => {
-    if (shared) return;
+    if (shared) {
+        context.ui.showToast("Score already shared!");
+        return;
+    }
+    let myRank = null; 
+    
+    const lbKey = `leaderboard_${mode === 'easy' ? 'easy' : mode === 'medium' ? 'medium' : 'hard'}_${today}`;
+    const username = data?.username ?? 'Agent';
+    const rankIndex = await context.redis.zRank(lbKey, username);
+    
+    if (rankIndex !== undefined) {
+         myRank = rankIndex + 1;
+         if (typeof setCurrentRank === 'function') setCurrentRank(myRank);
+    }
+    
+    const agentName = data?.username ?? 'Unknown Agent';
+    const rankText = myRank ? `🏆 Global Rank: #${myRank}` : `(Unranked)`;
+    const phrases = ["TARGET ACQUIRED", "GHOST NEUTRALIZED", "SIGNAL LOCKED", "MISSION SUCCESS", "THREAT ELIMINATED"];
+    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+
+    let commentText = "";
+    
+    const isCustomGame = data?.isCustom || (data?.customTitle && data.customTitle.length > 0);
+
+    if (isCustomGame) {
+         commentText = `u/${data?.customTitle}, u/${agentName} beat your challenge in **${attempts} moves**!\n\n` +
+                       `---\n` + 
+                       `*Generated by Spectral Signal*`; 
+    } else {
+         commentText = `📡 **SPECTRAL SIGNAL REPORT**\n` +
+         `> **${randomPhrase}**\n\n` + 
+         `👤 **Agent:** u/${agentName}\n` +
+         `🎯 **Score:** ${attempts} Moves [${mode === 'easy' ? 'SCOUT' : mode === 'medium' ? 'RANGER' : 'ELITE'}]\n` +
+         `${rankText}\n\n` +
+         `*Can you beat their rank?* \n\n` +
+         `---\n` +
+         `*Generated by Spectral Signal*`;
+    }
+
     try {
-      const modeName = mode === 'easy' ? 'SCOUT' : mode === 'medium' ? 'RANGER' : 'ELITE';
-      const agentName = data?.username ?? 'Unknown Agent';
-      let commentText = "";
-
-      if (data?.isCustom && data?.customTitle) {
-          commentText = `u/${data.customTitle}, u/${agentName} beat your challenge in **${attempts} moves**!`;
-      } 
-      else {
-          const openers = ["📢 **SYSTEM BROADCAST**", "🚨 **MISSION REPORT**", "📁 **UPDATE**", "📡 **SIGNAL INTERCEPTED**"];
-          const actions = [
-              `Agent **u/${agentName}** has neutralized the target!`,
-              `**u/${agentName}** successfully cleared the sector.`,
-              `Ghost captured by **u/${agentName}**.`,
-              `**u/${agentName}** just set a new standard.`
-          ];
-          const rndOpener = openers[Math.floor(Math.random() * openers.length)];
-          const rndAction = actions[Math.floor(Math.random() * actions.length)];
-
-          commentText = `${rndOpener}\n\n` +
-            `${rndAction}\n` +
-            `Performance: **${attempts} moves** [${modeName}]\n` +
-            `Active Streak: **${streak.current}** 🔥\n\n` +
-            `*Can you beat this score?* 👇\n \n` + 
-            `---\n` + 
-            `*generated by Spectral Signal*`;
-      }
-
-      await context.reddit.submitComment({
-          id: context.postId,
-          text: commentText
-      });
-      
-      setShared(true);
-      if (data?.lockKey) await context.redis.set(data.lockKey, 'true');
-
-      context.ui.showToast(data?.isCustom ? "Creator Notified!" : "System Log Published!");
+        await context.reddit.submitComment({
+            id: context.postId,
+            text: commentText,
+            userGeneratedContent: true
+        }, { runAs: 'USER' });
+        
+        setShared(true);
+        if (data?.lockKey) await context.redis.set(data.lockKey, 'true');
+        
+        context.ui.showToast("Log Published!");
     } catch (e) {
-      console.log(e);
-      context.ui.showToast("Share failed (You might be posting too fast!)");
+        console.log("Share Error:", e);
+        context.ui.showToast("Error: Could not post comment.");
     }
   };
 
@@ -386,14 +442,7 @@ const GameController = ({ mode, context, onBack }: any) => {
           setTotalContracts(newTotal);
           setSubmitted(true);
           
-          if (data.progressKey) {
-             const current = await context.redis.get(data.progressKey);
-             if (current) {
-                 const parsed = JSON.parse(current);
-                 parsed.submitted = true;
-                 await context.redis.set(data.progressKey, JSON.stringify(parsed));
-             }
-          }
+          await saveProgress({ submitted: true });
           context.ui.showToast(`BOUNTY CLAIMED. TOTAL: ${newTotal}`);
           return;
       }
@@ -415,15 +464,7 @@ const GameController = ({ mode, context, onBack }: any) => {
       await context.redis.set(`streak_date_${data?.username}`, today);
 
       setSubmitted(true);
-      
-      if (data.progressKey) {
-          const current = await context.redis.get(data.progressKey);
-          if (current) {
-              const parsed = JSON.parse(current);
-              parsed.submitted = true;
-              await context.redis.set(data.progressKey, JSON.stringify(parsed));
-          }
-      }
+      await saveProgress({ submitted: true });
 
       context.ui.showToast(`SCORE UPLOADED. STREAK: ${newStreakCount}`);
   };
@@ -457,13 +498,14 @@ const GameController = ({ mode, context, onBack }: any) => {
             setShake(8); 
         }
 
-        if (data.progressKey) {
-            await context.redis.set(data.progressKey, JSON.stringify({
-                attempts: newAttempts, scannedTiles: newTiles, gameOver: winNow, 
-                dead: hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT), 
-                submitted: submitted
-            }));
-        }
+        await saveProgress({
+            attempts: newAttempts, 
+            scannedTiles: newTiles, 
+            gameOver: winNow, 
+            dead: hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT), 
+            submitted: submitted
+        });
+
     } catch (e) { context.ui.showToast("SYSTEM ERROR: RESTART APP"); }
   };
 
@@ -472,6 +514,9 @@ const GameController = ({ mode, context, onBack }: any) => {
   const displayStreak = data?.savedStreak?.current ?? streak.current;
 
   const showVictoryPanel = gameOver || (data?.savedGameOver === true);
+  
+  const isActuallySubmitted = submitted || data?.alreadyUploaded;
+  const isActuallyCreated = challengeCreated || data?.savedChallengeCreated;
 
   if (isCreating) {
     return (
@@ -602,21 +647,21 @@ const GameController = ({ mode, context, onBack }: any) => {
                     
                     {data?.isCustom && (
                         <text color="#FFD700" size="small" weight="bold">
-                            CONTRACTS COMPLETED: {totalContracts + ((submitted || data?.alreadyUploaded) ? 1 : 0)}
+                            CONTRACTS COMPLETED: {totalContracts + (isActuallySubmitted ? 1 : 0)}
                         </text>
                     )}
 
                     <hstack gap="small" width="100%" alignment="center">
                          <button 
                             size="small" 
-                            disabled={submitted || data?.alreadyUploaded}
-                            appearance={(submitted || data?.alreadyUploaded) ? "bordered" : (data?.isCustom ? "secondary" : "primary")} 
+                            disabled={isActuallySubmitted}
+                            appearance={isActuallySubmitted ? "bordered" : (data?.isCustom ? "secondary" : "primary")} 
                             onPress={submitScore}
-                         >
-                            {(submitted || data?.alreadyUploaded) ? "✔ UPLOADED" : (data?.isCustom ? "CLAIM" : "UPLOAD")}
-                         </button>
+                          >
+                            {isActuallySubmitted ? "✔ UPLOADED" : (data?.isCustom ? "CLAIM" : "UPLOAD")}
+                          </button>
                         
-                        {!isDead && !data?.isCustom && (
+                        {!isDead && !data?.isCustom && !isActuallyCreated && (
                           <button 
                                 size="small" 
                                 appearance="bordered" 
@@ -637,7 +682,7 @@ const GameController = ({ mode, context, onBack }: any) => {
                         </button>
                     </hstack>
                     
-                    {(submitted || data?.alreadyUploaded) && !data?.isCustom && (
+                    {isActuallySubmitted && !data?.isCustom && (
                         <text color="#00ffcc" size="xsmall" weight="bold">STREAK SAVED</text>
                     )}
                 </vstack>
