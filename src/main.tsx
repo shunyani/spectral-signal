@@ -1,5 +1,4 @@
 import { Devvit, useState, useAsync, useInterval } from '@devvit/public-api';
-
 Devvit.configure({ redditAPI: true, redis: true, userActions: true });
 
 // ---------------------
@@ -7,13 +6,13 @@ Devvit.configure({ redditAPI: true, redis: true, userActions: true });
 // ---------------------
 
 const MenuCard = ({ title, desc, color, onPress }: any) => (
-  <vstack 
-    cornerRadius="medium" 
-    borderColor={color} 
-    border="thin" 
-    padding="small" 
-    backgroundColor="#1a1a1a" 
-    gap="small" 
+  <vstack
+    cornerRadius="medium"
+    borderColor={color}
+    border="thin"
+    padding="small"
+    backgroundColor="#1a1a1a"
+    gap="small"
     onPress={onPress}
   >
     <vstack alignment="center">
@@ -49,15 +48,15 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
   const today = new Date().toISOString().split('T')[0];
   const y = new Date(); y.setUTCDate(y.getUTCDate() - 1);
   const yesterday = y.toISOString().split('T')[0];
-  
+
   const { data, loading } = useAsync(async () => {
     const currentUser = await context.reddit.getCurrentUser();
-    
+
     const [scout, ranger, elite, streaksRaw] = await Promise.all([
-      context.redis.zRange(`leaderboard_easy_${today}`, 0, 9), 
+      context.redis.zRange(`leaderboard_easy_${today}`, 0, 9),
       context.redis.zRange(`leaderboard_medium_${today}`, 0, 9),
       context.redis.zRange(`leaderboard_hard_${today}`, 0, 9),
-      context.redis.zRange(`leaderboard_streaks`, 0, 19, { reverse: true }) 
+      context.redis.zRange(`leaderboard_streaks`, 0, 19, { reverse: true })
     ]);
 
     const streakDates = await Promise.all(
@@ -83,12 +82,11 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
   };
 
   const themeColor = getThemeColor();
-
   const renderRankBadge = (index: number) => {
     let bgColor = "#333333"; let textColor = "white";
-    if (index === 0) { bgColor = "#FFD700"; textColor = "black"; } 
-    else if (index === 1) { bgColor = "#C0C0C0"; textColor = "black"; } 
-    else if (index === 2) { bgColor = "#CD7F32"; textColor = "black"; } 
+    if (index === 0) { bgColor = "#FFD700"; textColor = "black"; }
+    else if (index === 1) { bgColor = "#C0C0C0"; textColor = "black"; }
+    else if (index === 2) { bgColor = "#CD7F32"; textColor = "black"; }
     return (<vstack width="24px" height="24px" cornerRadius="full" backgroundColor={bgColor} alignment="center middle"><text size="xsmall" weight="bold" color={textColor}>{(index + 1).toString()}</text></vstack>);
   };
 
@@ -116,7 +114,7 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
              const isMe = e.member === data?.username;
              return (
                <hstack key={i.toString()} width="100%" alignment="middle" backgroundColor={isMe ? "#1a1a1a" : "transparent"} cornerRadius="small" padding="4px">
-                  {renderRankBadge(i)}<spacer width="12px" /> 
+                  {renderRankBadge(i)}<spacer width="12px" />
                   <text color={isMe ? themeColor : "white"} size="small" weight="bold" overflow="ellipsis">{e.member}</text>
                   <spacer grow />
                   <vstack alignment="end">
@@ -130,7 +128,6 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
        ) : (<vstack alignment="center" padding="large"><text color="#666" size="medium">NO DATA YET</text></vstack>)}
     </vstack>
   );
-
   return (
     <zstack width="100%" height="100%" alignment="center middle">
       <image url="background2.jpg" imageWidth={1080} imageHeight={1920} width="100%" height="100%" resizeMode="cover" />
@@ -147,11 +144,9 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
             <TabButton label="ELITE" mode="elite" color="#ff0055" />
             <TabButton label="STREAK" mode="streaks" color="#FFD700" />
         </hstack>
-        
         <vstack width="100%" grow>
             {loading ? <vstack grow alignment="center middle"><text color={themeColor}>SYNCING...</text></vstack> : renderList(data?.[activeTab])}
         </vstack>
-      
       </vstack>
     </zstack>
   );
@@ -164,34 +159,32 @@ const LeaderboardScreen = ({ context, onBack }: any) => {
 const GameController = ({ mode, context, onBack }: any) => {
   const getUtcDate = (d: Date) => d.toISOString().split('T')[0];
   const today = getUtcDate(new Date());
-  
   const gridSize = mode === 'easy' ? 6 : 8;
   const tileSize = gridSize === 6 ? "38px" : "28px";
-  
+
   const [attempts, setAttempts] = useState(0);
   const [scannedTiles, setScannedTiles] = useState<Record<string, number>>({});
   const [gameOver, setGameOver] = useState(false);
   const [isDead, setIsDead] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [shared, setShared] = useState(false); 
-  const [shake, setShake] = useState(0); 
+  const [shared, setShared] = useState(false);
+  const [shake, setShake] = useState(0);
   const [streak, setStreak] = useState({ current: 0, lastWin: '' });
   const [isCreating, setIsCreating] = useState(false);
   const [resetKey, setResetKey] = useState(0);
-  const [challengeCreated, setChallengeCreated] = useState(false); 
-
-  const [totalContracts, setTotalContracts] = useState(0); 
+  const [challengeCreated, setChallengeCreated] = useState(false);
+  const [totalContracts, setTotalContracts] = useState(0);
   const [currentRank, setCurrentRank] = useState<number | null>(null);
   const [creatorGhostIndex, setCreatorGhostIndex] = useState(-1);
-  const [customMoves, setCustomMoves] = useState(7); 
-  const [customMines, setCustomMines] = useState(11); 
+  const [customMoves, setCustomMoves] = useState(7);
+  const [customMines, setCustomMines] = useState(11);
 
   useInterval(() => { if (shake > 0) setShake(prev => prev - 1); }, 50);
 
   const { data, loading } = useAsync(async () => {
     const user = await context.reddit.getCurrentUser();
     const username = user?.username ?? 'Agent';
-    
+
     let gameData = null;
     let isCustom = false;
     let customTitle = "";
@@ -211,15 +204,15 @@ const GameController = ({ mode, context, onBack }: any) => {
         const gx = cData.ghostIndex % gridSize;
         const gy = Math.floor(cData.ghostIndex / gridSize);
         moveLimit = cData.moves || 7;
-        
+
         let bombs: any[] = [];
         if (mode === 'hard') {
            const count = cData.mineCount || 11;
            while(bombs.length < count) {
               const bx = Math.floor(Math.random() * gridSize);
               const by = Math.floor(Math.random() * gridSize);
-              if((bx !== gx || by !== gy) && !bombs.some((b: any) => b.x === bx && b.y === by)) { 
-                  bombs.push({x: bx, y: by}); 
+              if((bx !== gx || by !== gy) && !bombs.some((b: any) => b.x === bx && b.y === by)) {
+                  bombs.push({x: bx, y: by});
               }
            }
         }
@@ -246,33 +239,30 @@ const GameController = ({ mode, context, onBack }: any) => {
         }
     }
 
-    const progressKey = isCustom 
+    const progressKey = isCustom
         ? `progress_custom_${context.postId}_${context.userId}`
         : `progress_${mode}_${today}_${context.userId}_v16`;
 
     const savedProgress = await context.redis.get(progressKey).then((res: string | undefined) => res ? JSON.parse(res) : null);
-    
     const streakKey = `streak_${context.userId}`;
     let s = await context.redis.get(streakKey).then((res: string | undefined) => res ? JSON.parse(res) : { current: 0, lastWin: '' });
-
     const contracts = await context.redis.get(`contracts_solved_${context.userId}`).then((res: string | undefined) => res ? parseInt(res) : 0);
-  
     const lockKey = `lock_share_${progressKey}`;
     const alreadyShared = await context.redis.get(lockKey);
 
     const y = new Date(); y.setUTCDate(y.getUTCDate() - 1);
     const yesterday = y.toISOString().split('T')[0];
     if (s.current > 0 && s.lastWin !== today && s.lastWin !== yesterday) {
-        s.current = 0; 
+        s.current = 0;
         await context.redis.set(streakKey, JSON.stringify(s));
     }
-    
+
     const alreadyUploaded = savedProgress?.submitted || false;
     const savedChallengeCreated = savedProgress?.challengeCreated || false;
 
-    return { 
+    return {
       gameData, username, alreadyUploaded, savedChallengeCreated,
-      alreadyShared: alreadyShared === 'true', 
+      alreadyShared: alreadyShared === 'true',
       savedAttempts: savedProgress?.attempts ?? 0,
       savedTiles: savedProgress?.scannedTiles ?? {},
       savedGameOver: alreadyUploaded || (savedProgress?.gameOver ?? false),
@@ -281,7 +271,8 @@ const GameController = ({ mode, context, onBack }: any) => {
       isCustom, customTitle, moveLimit,
       progressKey, lockKey
     };
-  }, [resetKey]); 
+
+  }, [resetKey]);
 
   const [loaded, setLoaded] = useState(false);
   if (data && !loaded) {
@@ -291,7 +282,7 @@ const GameController = ({ mode, context, onBack }: any) => {
       setIsDead(data.savedDead);
       setStreak(data.savedStreak);
       setTotalContracts(data.contracts || 0);
-      setShared(data.alreadyShared); 
+      setShared(data.alreadyShared);
       setSubmitted(data.alreadyUploaded);
       setChallengeCreated(data.savedChallengeCreated);
       setLoaded(true);
@@ -314,10 +305,9 @@ const GameController = ({ mode, context, onBack }: any) => {
   const postChallenge = async () => {
     if (creatorGhostIndex === -1) { context.ui.showToast("Select a ghost location first!"); return; }
     context.ui.showToast("Creating Challenge...");
-    
+
     const currentUser = await context.reddit.getCurrentUser();
     const username = currentUser?.username ?? (data?.username || 'Unknown Agent');
-
     const modeName = mode === 'easy' ? 'SCOUT' : mode === 'medium' ? 'RANGER' : 'ELITE';
     let title = `Can you find u/${username}'s Ghost? [${modeName}]`;
     if(mode === 'medium') title = `u/${username} challenges you: Find the Ghost in ${customMoves} moves! [RANGER]`;
@@ -328,7 +318,8 @@ const GameController = ({ mode, context, onBack }: any) => {
             title: title,
             subredditName: (await context.reddit.getCurrentSubreddit()).name,
             preview: (<vstack height="100%" width="100%" alignment="middle center" backgroundColor="#000510"><text size="large" color="#00ffcc">LOADING USER PUZZLE...</text></vstack>),
-            userGeneratedContent: true 
+            userGeneratedContent: true
+
         }, { runAs: 'USER' });
 
         await context.redis.set(`puzzle:${newPost.id}`, JSON.stringify({
@@ -338,8 +329,9 @@ const GameController = ({ mode, context, onBack }: any) => {
             moves: customMoves,
             mineCount: customMines,
             createdAt: Date.now()
+
         }));
-        
+
         const cleanId = newPost.id.replace('t3_', '');
         if (cleanId !== newPost.id) {
             await context.redis.set(`puzzle:${cleanId}`, JSON.stringify({
@@ -354,7 +346,7 @@ const GameController = ({ mode, context, onBack }: any) => {
 
         context.ui.showToast("Challenge Posted!");
         await saveProgress({ challengeCreated: true });
-        setChallengeCreated(true); 
+        setChallengeCreated(true);
         setIsCreating(false);
     } catch (e) {
         console.error("Post Error:", e);
@@ -365,9 +357,9 @@ const GameController = ({ mode, context, onBack }: any) => {
   const rechargeSystem = async () => {
       setAttempts(0); setScannedTiles({}); setIsDead(false); setGameOver(false);
       setSubmitted(false); setShake(0);
-      setShared(false); 
-      setChallengeCreated(false); 
-      
+      setShared(false);
+      setChallengeCreated(false);
+
       if (data?.progressKey) {
           await context.redis.del(data.progressKey);
           await context.redis.del(data.lockKey);
@@ -381,33 +373,32 @@ const GameController = ({ mode, context, onBack }: any) => {
         context.ui.showToast("Score already shared!");
         return;
     }
-    let myRank = null; 
-    
+
+    let myRank = null;
     const lbKey = `leaderboard_${mode === 'easy' ? 'easy' : mode === 'medium' ? 'medium' : 'hard'}_${today}`;
     const username = data?.username ?? 'Agent';
     const rankIndex = await context.redis.zRank(lbKey, username);
-    
+
     if (rankIndex !== undefined) {
          myRank = rankIndex + 1;
          if (typeof setCurrentRank === 'function') setCurrentRank(myRank);
     }
-    
+
     const agentName = data?.username ?? 'Unknown Agent';
     const rankText = myRank ? `🏆 Global Rank: #${myRank}` : `(Unranked)`;
     const phrases = ["TARGET ACQUIRED", "GHOST NEUTRALIZED", "SIGNAL LOCKED", "MISSION SUCCESS", "THREAT ELIMINATED"];
     const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
 
     let commentText = "";
-    
     const isCustomGame = data?.isCustom || (data?.customTitle && data.customTitle.length > 0);
 
     if (isCustomGame) {
          commentText = `u/${data?.customTitle}, u/${agentName} beat your challenge in **${attempts} moves**!\n\n` +
-                       `---\n` + 
-                       `*Generated by Spectral Signal*`; 
+                       `---\n` +
+                       `*Generated by Spectral Signal*`;
     } else {
          commentText = `📡 **SPECTRAL SIGNAL REPORT**\n` +
-         `> **${randomPhrase}**\n\n` + 
+         `> **${randomPhrase}**\n\n` +
          `👤 **Agent:** u/${agentName}\n` +
          `🎯 **Score:** ${attempts} Moves [${mode === 'easy' ? 'SCOUT' : mode === 'medium' ? 'RANGER' : 'ELITE'}]\n` +
          `${rankText}\n\n` +
@@ -422,10 +413,8 @@ const GameController = ({ mode, context, onBack }: any) => {
             text: commentText,
             userGeneratedContent: true
         }, { runAs: 'USER' });
-        
         setShared(true);
         if (data?.lockKey) await context.redis.set(data.lockKey, 'true');
-        
         context.ui.showToast("Log Published!");
     } catch (e) {
         console.log("Share Error:", e);
@@ -435,29 +424,26 @@ const GameController = ({ mode, context, onBack }: any) => {
 
   const submitScore = async () => {
       if (submitted || !data) return;
-
       if (data.isCustom) {
           const newTotal = totalContracts + 1;
           await context.redis.incrBy(`contracts_solved_${context.userId}`, 1);
           setTotalContracts(newTotal);
           setSubmitted(true);
-          
           await saveProgress({ submitted: true });
           context.ui.showToast(`BOUNTY CLAIMED. TOTAL: ${newTotal}`);
           return;
-      }
-      
+      } 
+
       const d = new Date(); d.setUTCDate(d.getUTCDate() - 1);
       const yesterdayStr = d.toISOString().split('T')[0];
       const trueStreak = await context.redis.get(`streak_${context.userId}`).then((res: string | undefined) => res ? JSON.parse(res) : { current: 0, lastWin: '' });
 
       let newStreakCount = 1;
       if (trueStreak.lastWin === yesterdayStr) newStreakCount = trueStreak.current + 1;
-      else if (trueStreak.lastWin === today) newStreakCount = trueStreak.current; 
-      
+      else if (trueStreak.lastWin === today) newStreakCount = trueStreak.current;
       const newS = { current: newStreakCount, lastWin: today };
       await context.redis.set(`streak_${context.userId}`, JSON.stringify(newS));
-      setStreak(newS); 
+      setStreak(newS);
 
       await context.redis.zAdd(`leaderboard_streaks`, { member: data?.username ?? 'Agent', score: newStreakCount });
       await context.redis.zAdd(`leaderboard_${mode === 'easy' ? 'easy' : mode === 'medium' ? 'medium' : 'hard'}_${today}`, { member: data?.username ?? 'Agent', score: attempts });
@@ -465,7 +451,6 @@ const GameController = ({ mode, context, onBack }: any) => {
 
       setSubmitted(true);
       await saveProgress({ submitted: true });
-
       context.ui.showToast(`SCORE UPLOADED. STREAK: ${newStreakCount}`);
   };
 
@@ -478,13 +463,13 @@ const GameController = ({ mode, context, onBack }: any) => {
 
     if (!data || !data?.gameData || !data?.gameData?.ghost) { context.ui.showToast("ERROR: SYNCING... TRY AGAIN"); return; }
     if (gameOver || isDead || submitted || scannedTiles[`${x}-${y}`] !== undefined) return;
-    
+
     try {
         const { ghost, bombs } = data.gameData;
         const hitBomb = bombs ? bombs.some((b: any) => b.x === x && b.y === y) : false;
         const dist = Math.sqrt(Math.pow(ghost.x - x, 2) + Math.pow(ghost.y - y, 2));
         let signal = hitBomb ? -1 : Math.floor(Math.max(0, 100 - (dist * 9)));
-        
+
         const newTiles = { ...scannedTiles, [`${x}-${y}`]: signal };
         const newAttempts = attempts + 1;
         const winNow = signal === 100;
@@ -492,17 +477,20 @@ const GameController = ({ mode, context, onBack }: any) => {
         setScannedTiles(newTiles); setAttempts(newAttempts);
 
         if (winNow) {
-            setGameOver(true);
-        } else if (hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT)) { 
-            setIsDead(true); 
-            setShake(8); 
+           setGameOver(true);
+
+        } else if (hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT)) {
+            setIsDead(true);
+           setShake(8);
+
         }
 
         await saveProgress({
-            attempts: newAttempts, 
-            scannedTiles: newTiles, 
-            gameOver: winNow, 
-            dead: hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT), 
+
+            attempts: newAttempts,
+            scannedTiles: newTiles,
+            gameOver: winNow,
+            dead: hitBomb || (mode === 'medium' && newAttempts >= RANGER_LIMIT),
             submitted: submitted
         });
 
@@ -512,9 +500,7 @@ const GameController = ({ mode, context, onBack }: any) => {
   if(loading || !data) return <vstack height="100%" alignment="center middle"><text color="#00ffcc">DECRYPTING...</text></vstack>;
   const shakePad = shake % 2 === 0 ? "small" : "medium";
   const displayStreak = data?.savedStreak?.current ?? streak.current;
-
   const showVictoryPanel = gameOver || (data?.savedGameOver === true);
-  
   const isActuallySubmitted = submitted || data?.alreadyUploaded;
   const isActuallyCreated = challengeCreated || data?.savedChallengeCreated;
 
@@ -523,9 +509,9 @@ const GameController = ({ mode, context, onBack }: any) => {
         <zstack width="100%" height="100%" alignment="center middle">
             <image url="background.jpg" imageWidth={1080} imageHeight={1920} width="100%" height="100%" resizeMode="cover" />
             <vstack width="100%" height="100%" backgroundColor="#000000D9" padding="medium" alignment="center middle" gap="medium">
-                <text size="large" weight="bold" color="#00ffcc">CREATE CHALLENGE</text>
+                <text size="large" weight="bold" color="#00ffcc">CREATE </text>
                 <text size="small" color="white">Tap grid to hide the Ghost</text>
-                
+
                 <vstack padding="small" backgroundColor="#000000" cornerRadius="large" border="thin" borderColor="#00ffcc" gap="small">
                     {[...Array(gridSize)].map((_, r) => (
                       <hstack key={r.toString()} gap="small" alignment="center middle">
@@ -533,9 +519,9 @@ const GameController = ({ mode, context, onBack }: any) => {
                           const index = r * gridSize + c;
                           const isSelected = creatorGhostIndex === index;
                           return (
-                            <vstack key={c.toString()} width={tileSize} height={tileSize} 
-                                backgroundColor={isSelected ? "#00ffcc" : "#0a1520"} 
-                                onPress={() => handleScan(c, r)} 
+                            <vstack key={c.toString()} width={tileSize} height={tileSize}
+                                backgroundColor={isSelected ? "#00ffcc" : "#0a1520"}
+                                onPress={() => handleScan(c, r)}
                                 alignment="center middle" cornerRadius="small" borderColor="#ffffff33" border="thin">
                                 {isSelected && <image url="goodghost.jpg" imageWidth={256} imageHeight={256} width="80%" height="80%" />}
                             </vstack>
@@ -575,15 +561,14 @@ const GameController = ({ mode, context, onBack }: any) => {
         </zstack>
     );
   }
-
   return (
     <zstack width="100%" height="100%" alignment="center middle">
       <image url="background.jpg" imageWidth={1080} imageHeight={1920} width="100%" height="100%" resizeMode="cover" />
-      <vstack width="100%" height="100%" backgroundColor="#00000080" /> 
+      <vstack width="100%" height="100%" backgroundColor="#00000080" />
+
       {(isDead || shake > 0) && <vstack width="100%" height="100%" backgroundColor="#330000D9" />}
 
       <vstack width="100%" height="100%" padding={shakePad} alignment="center middle" gap="small">
-        
         <hstack width="100%" alignment="middle center" padding="medium">
           <button size="small" appearance="secondary" onPress={onBack}>{data?.isCustom ? "ABORT" : "❮ MENU"}</button>
           <spacer grow />
@@ -601,8 +586,9 @@ const GameController = ({ mode, context, onBack }: any) => {
         </hstack>
 
         <spacer height="10px" />
-        
+
         <vstack alignment="center middle" width="100%">
+
           <vstack padding="small" backgroundColor="#00000099" cornerRadius="large" borderColor={isDead ? "#ff0055" : "#00ffcc"} border="thin" gap="small">
             {[...Array(gridSize)].map((_, r) => (
               <hstack key={r.toString()} gap="small" alignment="center middle">
@@ -612,12 +598,13 @@ const GameController = ({ mode, context, onBack }: any) => {
                   let tileColor = "#0a1520";
                   if(isScanned) {
                     if(s === -1) tileColor = "#ff0033";
-                    else if(s === 100) tileColor = "#8A2BE2"; 
-                    else if(s >= 90) tileColor = "#ee00fb"; 
-                    else if(s >= 80) tileColor = "#ff5cec"; 
-                    else if(s >= 60) tileColor = "#0596fe"; 
-                    else if(s >= 40) tileColor = "#283b7e"; 
-                    else tileColor = "#0e161ed2";           
+
+                    else if(s === 100) tileColor = "#8A2BE2";
+                    else if(s >= 90) tileColor = "#ee00fb";
+                    else if(s >= 80) tileColor = "#ff5cec";
+                    else if(s >= 60) tileColor = "#0596fe";
+                    else if(s >= 40) tileColor = "#283b7e";
+                    else tileColor = "#0e161ed2";          
                   }
                   return (
                     <vstack key={c.toString()} width={tileSize} height={tileSize} backgroundColor={tileColor} onPress={() => handleScan(c, r)} alignment="center middle" cornerRadius="small" borderColor="#ffffff11" border="thin">
@@ -631,57 +618,54 @@ const GameController = ({ mode, context, onBack }: any) => {
             ))}
           </vstack>
         </vstack>
-
+      
         <spacer grow />
-        
         <vstack alignment="center" gap="xsmall" padding="xsmall" width="100%">
             <text color={isDead ? "#ff0000" : "#20fff8"} weight="bold" size="small">
                 {isDead ? (mode === 'medium' && attempts >= RANGER_LIMIT ? "BATTERY DEPLETED" : "⚠ SIGNAL LOST") : gameOver ? "✔ GHOST CAPTURED" : (mode === 'medium' ? `BATTERY: ${RANGER_LIMIT - attempts} / ${RANGER_LIMIT}` : `CYCLES: ${attempts}`)}
             </text>
-            
           {showVictoryPanel && (
                 <vstack alignment="center" gap="xsmall" width="100%">
                     <text color="white" size="xsmall">
                         {(data?.isCustom && data?.savedGameOver) ? "MISSION ACCOMPLISHED" : `${attempts} MOVES`}
                     </text>
-                    
+                  
                     {data?.isCustom && (
                         <text color="#FFD700" size="small" weight="bold">
                             CONTRACTS COMPLETED: {totalContracts + (isActuallySubmitted ? 1 : 0)}
                         </text>
                     )}
-
                     <hstack gap="small" width="100%" alignment="center">
-                         <button 
-                            size="small" 
+                        <button
+                            size="small"
                             disabled={isActuallySubmitted}
-                            appearance={isActuallySubmitted ? "bordered" : (data?.isCustom ? "secondary" : "primary")} 
+                            appearance={isActuallySubmitted ? "bordered" : (data?.isCustom ? "secondary" : "primary")}
                             onPress={submitScore}
                           >
                             {isActuallySubmitted ? "✔ UPLOADED" : (data?.isCustom ? "CLAIM" : "UPLOAD")}
                           </button>
-                        
+
                         {!isDead && !data?.isCustom && !isActuallyCreated && (
-                          <button 
-                                size="small" 
-                                appearance="bordered" 
-                                icon="add" 
+
+                          <button
+                                size="small"
+                                appearance="bordered"
+                                icon="add"
                                 onPress={() => { setIsCreating(true); setCreatorGhostIndex(-1); }}
                             >
-                                CREATE CHALLENGE
+                                CREATE
                             </button>
                         )}
-                        <button 
-                            size="small" 
-                            appearance="secondary" 
-                            icon="share" 
-                            disabled={shared || data?.alreadyShared} 
+                        <button
+                            size="small"
+                            appearance="secondary"
+                            icon="share"
+                            disabled={shared || data?.alreadyShared}
                             onPress={shareResult}
                         >
                             {(shared || data?.alreadyShared) ? "SENT" : "SHARE"}
                         </button>
                     </hstack>
-                    
                     {isActuallySubmitted && !data?.isCustom && (
                         <text color="#00ffcc" size="xsmall" weight="bold">STREAK SAVED</text>
                     )}
@@ -746,16 +730,13 @@ Devvit.addCustomPostType({
         if(initData.mode === 'medium' || initData.mode === 'ranger') return <GameController mode="medium" context={context} onBack={() => setCurrentMode('menu')} />;
         if(initData.mode === 'hard' || initData.mode === 'elite') return <GameController mode="hard" context={context} onBack={() => setCurrentMode('menu')} />;
     }
-
     if (currentMode === 'leaderboard') return <LeaderboardScreen context={context} onBack={() => setCurrentMode('menu')} />;
 
     if (currentMode === 'menu') {
-      
       if (initData?.mode) {
           const modeMap: Record<string, string> = { 'easy': 'SCOUT', 'scout': 'SCOUT', 'medium': 'RANGER', 'ranger': 'RANGER', 'hard': 'ELITE', 'elite': 'ELITE' };
           const modeName = modeMap[initData.mode] || 'UNKNOWN';
           const themeColor = modeName === 'SCOUT' ? '#00ffcc' : modeName === 'RANGER' ? '#9900ff' : '#ff0055';
-
           return (
             <zstack width="100%" height="100%" alignment="center middle">
                 <image url="background.jpg" imageWidth={1080} imageHeight={1920} width="100%" height="100%" resizeMode="cover" />
@@ -782,15 +763,12 @@ Devvit.addCustomPostType({
       return (
         <zstack width="100%" height="100%" alignment="center middle">
           <image url="background.jpg" imageWidth={1080} imageHeight={1920} width="100%" height="100%" resizeMode="cover" />
-          <vstack width="100%" height="100%" backgroundColor="#00000080" /> 
-
+          <vstack width="100%" height="100%" backgroundColor="#00000080" />
           <vstack height="100%" width="100%" alignment="center middle" padding="medium">
             <vstack alignment="center" gap="small">
                 <text size="xxlarge" weight="bold" color="#ffffff">SPECTRAL SIGNAL</text>
             </vstack>
-
             <spacer grow />
-            
             <vstack gap="medium" width="280px">
               <MenuCard title="SCOUT" desc="6x6 Grid • Safe" color="#00ffcc" onPress={() => setCurrentMode('easy')} />
               <MenuCard title="RANGER" desc="8x8 Grid • 7 Moves" color="#9900ff" onPress={() => setCurrentMode('medium')} />
@@ -800,10 +778,8 @@ Devvit.addCustomPostType({
                   High Numbers = Closer to Target!
               </text>
             </vstack>
-            
             <spacer grow />
-            
-            <RealFooter count={dailyCount} onLeaderboard={() => setCurrentMode('leaderboard')} />
+                        <RealFooter count={dailyCount} onLeaderboard={() => setCurrentMode('leaderboard')} />
           </vstack>
         </zstack>
       );

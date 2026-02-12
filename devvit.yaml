@@ -1,5 +1,5 @@
 name: spectral-signal
-version: 1.0.0
+version: 1.0.1
 features:
   redis: true
   userActions: true
